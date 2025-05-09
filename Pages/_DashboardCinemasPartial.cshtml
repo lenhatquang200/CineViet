@@ -1,0 +1,145 @@
+@model DashboardModel
+@{
+    var search = Context.Request.Query["search"].ToString();
+    var filtered = Model.Cinemas.AsQueryable();
+    if (!string.IsNullOrEmpty(search)) filtered = filtered.Where(c => c.Name.Contains(search));
+    var page = int.TryParse(Context.Request.Query["page"], out var p) ? p : 1;
+    var pageSize = 10;
+    var total = filtered.Count();
+    var totalPages = (int)Math.Ceiling(total / (double)pageSize);
+    var cinemas = filtered.Skip((page-1)*pageSize).Take(pageSize).ToList();
+}
+<div class="mb-4">
+    <button class="btn btn-primary mb-3" data-bs-toggle="modal" data-bs-target="#addCinemaModal">Thêm rạp mới</button>
+</div>
+<div class="mb-3 row g-2 align-items-end">
+    <div class="col-md-4 d-flex align-items-center gap-2">
+        <input type="text" class="form-control" name="search" placeholder="Tìm kiếm tên rạp..." value="@Context.Request.Query["search"]" onkeydown="if(event.key==='Enter'){window.location='?section=cinemas&search='+encodeURIComponent(this.value)}" />
+        <button type="button" class="btn btn-primary" onclick="window.location='?section=cinemas&search='+encodeURIComponent(document.querySelector('input[name=search]').value)">Lọc</button>
+    </div>
+</div>
+<!-- Modal Thêm rạp -->
+<div class="modal fade" id="addCinemaModal" tabindex="-1" aria-labelledby="addCinemaModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form method="post" asp-page-handler="AddCinema">
+        @Html.AntiForgeryToken()
+        <div class="modal-header">
+          <h5 class="modal-title" id="addCinemaModalLabel">Thêm rạp mới</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label">Tên rạp</label>
+            <input type="text" name="Name" class="form-control" required />
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Địa chỉ</label>
+            <input type="text" name="Address" class="form-control" required />
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
+          <button type="submit" class="btn btn-primary">Lưu</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+<!-- Modal Sửa rạp (render động bằng JS) -->
+<div class="modal fade" id="editCinemaModal" tabindex="-1" aria-labelledby="editCinemaModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content" id="editCinemaModalContent">
+      <!-- Nội dung sẽ được render động bằng JS -->
+    </div>
+  </div>
+</div>
+<div>
+    <h4>Danh sách rạp</h4>
+    <table class="table table-bordered">
+        <thead>
+            <tr>
+                <th>Tên rạp</th>
+                <th>Địa chỉ</th>
+                <th>Hành động</th>
+            </tr>
+        </thead>
+        <tbody>
+        @foreach (var cinema in cinemas)
+        {
+            <tr>
+                <td>@cinema.Name</td>
+                <td>@cinema.Address</td>
+                <td>
+                    <button type="button" class="btn btn-sm btn-warning edit-cinema-btn" data-cinema='@Newtonsoft.Json.JsonConvert.SerializeObject(cinema, new Newtonsoft.Json.JsonSerializerSettings { ContractResolver = new Newtonsoft.Json.Serialization.CamelCasePropertyNamesContractResolver() })'>Sửa</button>
+                    <form method="post" asp-page-handler="DeleteCinema" asp-route-id="@cinema.Id" style="display:inline">
+                        <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Xóa rạp này?')">Xóa</button>
+                    </form>
+                </td>
+            </tr>
+        }
+        </tbody>
+    </table>
+    <nav>
+        <ul class="pagination justify-content-center">
+            @{
+                string searchParam = string.IsNullOrEmpty(search) ? "" : "&search=" + Uri.EscapeDataString(search);
+                int maxPages = 7;
+                int start = Math.Max(1, page - 2);
+                int end = Math.Min(totalPages, page + 2);
+                if (end - start < 4)
+                {
+                    if (start == 1) end = Math.Min(totalPages, start + 4);
+                    else if (end == totalPages) start = Math.Max(1, end - 4);
+                }
+                if (start > 1)
+                {
+                    <li class="page-item"><a class="page-link" href="?section=cinemas&page=1@searchParam">1</a></li>
+                    if (start > 2) { <li class="page-item disabled"><span class="page-link">...</span></li>; }
+                }
+                for (int i = start; i <= end; i++)
+                {
+                    <li class="page-item @(i==page?"active":null)"><a class="page-link" href="?section=cinemas&page=@i@searchParam">@i</a></li>
+                }
+                if (end < totalPages)
+                {
+                    if (end < totalPages - 1) { <li class="page-item disabled"><span class="page-link">...</span></li>; }
+                    <li class="page-item"><a class="page-link" href="?section=cinemas&page=@totalPages@searchParam">@totalPages</a></li>
+                }
+            }
+        </ul>
+    </nav>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script>
+    document.querySelectorAll('.edit-cinema-btn').forEach(btn => {
+        btn.addEventListener('click', function () {
+            const cinema = JSON.parse(this.getAttribute('data-cinema'));
+            let html = `<form method="post" action="?handler=EditCinema&id=${cinema.id}">
+                ${document.querySelector('input[name=__RequestVerificationToken]')?.outerHTML || ''}
+                <div class="modal-header">
+                  <h5 class="modal-title">Sửa rạp</h5>
+                  <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                  <div class="mb-3">
+                    <label class="form-label">Tên rạp</label>
+                    <input type="text" name="Name" class="form-control" value="${cinema.name}" required />
+                  </div>
+                  <div class="mb-3">
+                    <label class="form-label">Địa chỉ</label>
+                    <input type="text" name="Address" class="form-control" value="${cinema.address}" required />
+                  </div>
+                </div>
+                <div class="modal-footer">
+                  <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
+                  <button type="submit" class="btn btn-primary">Lưu</button>
+                </div>
+              </form>`;
+            document.getElementById('editCinemaModalContent').innerHTML = html;
+            var editModal = new bootstrap.Modal(document.getElementById('editCinemaModal'));
+            editModal.show();
+        });
+    });
+</script> 

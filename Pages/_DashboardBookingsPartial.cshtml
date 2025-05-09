@@ -1,0 +1,153 @@
+@model DashboardModel
+@{
+    var statusFilter = Context.Request.Query["status"].ToString();
+    var search = Context.Request.Query["search"].ToString();
+    var movieFilter = Context.Request.Query["movieId"].ToString();
+    var cinemaFilter = Context.Request.Query["cinemaId"].ToString();
+    var bookings = Model.Bookings.AsQueryable();
+    if (!string.IsNullOrEmpty(statusFilter)) bookings = bookings.Where(b => b.Status == statusFilter);
+    if (!string.IsNullOrEmpty(search)) bookings = bookings.Where(b => b.CustomerName.Contains(search) || b.Email.Contains(search) || b.Phone.Contains(search));
+    if (!string.IsNullOrEmpty(movieFilter)) bookings = bookings.Where(b => b.Showtime.Movie.Id.ToString() == movieFilter);
+    if (!string.IsNullOrEmpty(cinemaFilter)) bookings = bookings.Where(b => b.Showtime.Cinema.Id.ToString() == cinemaFilter);
+    var movies = Model.Movies;
+    var cinemas = Model.Cinemas;
+    var page = int.TryParse(Context.Request.Query["page"], out var p) ? p : 1;
+    var pageSize = 10;
+    var total = bookings.Count();
+    var totalPages = (int)Math.Ceiling(total / (double)pageSize);
+    var bookingsPage = bookings.Skip((page-1)*pageSize).Take(pageSize).ToList();
+}
+<div>
+    <h4 class="mb-3">Danh sách đơn hàng</h4>
+    <form method="get" class="row g-2 align-items-end mb-3">
+        <div class="col-md-2">
+            <label class="form-label mb-1">Trạng thái</label>
+            <select name="status" class="form-select form-select-sm">
+                <option value="">Tất cả</option>
+                <option value="pending" selected="@(statusFilter=="pending" ? "selected" : null)">Chờ thanh toán</option>
+                <option value="paid" selected="@(statusFilter=="paid" ? "selected" : null)">Đã thanh toán</option>
+                <option value="printed" selected="@(statusFilter=="printed" ? "selected" : null)">Đã in vé</option>
+            </select>
+        </div>
+        <div class="col-md-2">
+            <label class="form-label mb-1">Phim</label>
+            <select name="movieId" class="form-select form-select-sm">
+                <option value="">Tất cả</option>
+                @foreach(var m in movies) {
+                    <option value="@m.Id" selected="@(movieFilter==m.Id.ToString() ? "selected" : null)">@m.Name</option>
+                }
+            </select>
+        </div>
+        <div class="col-md-2">
+            <label class="form-label mb-1">Rạp</label>
+            <select name="cinemaId" class="form-select form-select-sm">
+                <option value="">Tất cả</option>
+                @foreach(var c in cinemas) {
+                    <option value="@c.Id" selected="@(cinemaFilter==c.Id.ToString() ? "selected" : null)">@c.Name</option>
+                }
+            </select>
+        </div>
+        <div class="col-md-3">
+            <label class="form-label mb-1">Tìm kiếm</label>
+            <input type="text" name="search" class="form-control form-control-sm" placeholder="Tên, email, SĐT..." value="@search" />
+        </div>
+        <div class="col-md-2">
+            <button type="submit" class="btn btn-primary btn-sm w-100">Lọc</button>
+        </div>
+    </form>
+    <div class="table-responsive">
+    <table class="table table-bordered align-middle bg-white">
+        <thead class="table-light">
+            <tr>
+                <th>Khách hàng</th>
+                <th>Email</th>
+                <th>Điện thoại</th>
+                <th>Phim</th>
+                <th>Rạp</th>
+                <th>Suất chiếu</th>
+                <th>Ghế</th>
+                <th>Tổng tiền</th>
+                <th>Ngày đặt</th>
+                <th>Trạng thái</th>
+                <th>Hành động</th>
+            </tr>
+        </thead>
+        <tbody>
+        @foreach (var b in bookingsPage)
+        {
+            var statusClass = b.Status == "pending" ? "bg-warning text-dark" : b.Status == "paid" ? "bg-info text-dark" : "bg-success text-white";
+            var statusText = b.Status == "pending" ? "Chờ thanh toán" : b.Status == "paid" ? "Đã thanh toán" : "Đã in vé";
+            <tr>
+                <td>@b.CustomerName</td>
+                <td>@b.Email</td>
+                <td>@b.Phone</td>
+                <td>@b.Showtime?.Movie?.Name</td>
+                <td>@b.Showtime?.Cinema?.Name</td>
+                <td>@b.Showtime?.Time.ToString("dd/MM/yyyy HH:mm")</td>
+                <td>@b.Seats</td>
+                <td>@b.TotalPrice.ToString("N0")đ</td>
+                <td>@b.BookingTime.ToString("dd/MM/yyyy HH:mm")</td>
+                <td><span class="badge @statusClass" style="font-size:1em">@statusText</span></td>
+                <td class="d-flex gap-1">
+                    <form method="post" asp-page-handler="UpdateBookingStatus" asp-route-id="@b.Id" style="display:inline">
+                        @{
+                            var renderedOptions = $@"<option value='pending' {(b.Status=="pending" ? "selected" : "")}>Chờ thanh toán</option>" +
+                                                $"<option value='paid' {(b.Status=="paid" ? "selected" : "")}>Đã thanh toán</option>" +
+                                                $"<option value='printed' {(b.Status=="printed" ? "selected" : "")}>Đã in vé</option>";
+                        }
+                        <select name="Status" class="form-select form-select-sm d-inline w-auto" style="min-width:110px">@Html.Raw(renderedOptions)</select>
+                        <button type="submit" class="btn btn-sm btn-primary ms-1">Cập nhật</button>
+                    </form>
+                    <form onsubmit="event.preventDefault(); window.open('/PrintTicket?id=@b.Id', '_blank', 'width=600,height=800'); return false;" style="display:inline">
+                        <button type="submit" class="btn btn-sm btn-success">In vé</button>
+                    </form>
+                </td>
+            </tr>
+        }
+        </tbody>
+    </table>
+    <nav>
+        <ul class="pagination justify-content-center">
+            @{
+                string searchParam = string.IsNullOrEmpty(Context.Request.Query["search"]) ? "" : "&search=" + Uri.EscapeDataString(Context.Request.Query["search"]);
+                string statusParam = string.IsNullOrEmpty(Context.Request.Query["status"]) ? "" : "&status=" + Uri.EscapeDataString(Context.Request.Query["status"]);
+                string movieParam = string.IsNullOrEmpty(Context.Request.Query["movieId"]) ? "" : "&movieId=" + Uri.EscapeDataString(Context.Request.Query["movieId"]);
+                string cinemaParam = string.IsNullOrEmpty(Context.Request.Query["cinemaId"]) ? "" : "&cinemaId=" + Uri.EscapeDataString(Context.Request.Query["cinemaId"]);
+                string dateParam = string.IsNullOrEmpty(Context.Request.Query["date"]) ? "" : "&date=" + Uri.EscapeDataString(Context.Request.Query["date"]);
+                int maxPages = 7;
+                int start = Math.Max(1, page - 2);
+                int end = Math.Min(totalPages, page + 2);
+                if (end - start < 4)
+                {
+                    if (start == 1) end = Math.Min(totalPages, start + 4);
+                    else if (end == totalPages) start = Math.Max(1, end - 4);
+                }
+                if (start > 1)
+                {
+                    <li class="page-item"><a class="page-link" href="?section=bookings&page=1@searchParam@statusParam@movieParam@cinemaParam@dateParam">1</a></li>
+                    if (start > 2) { <li class="page-item disabled"><span class="page-link">...</span></li>; }
+                }
+                for (int i = start; i <= end; i++)
+                {
+                    <li class="page-item @(i==page?"active":null)"><a class="page-link" href="?section=bookings&page=@i@searchParam@statusParam@movieParam@cinemaParam@dateParam">@i</a></li>
+                }
+                if (end < totalPages)
+                {
+                    if (end < totalPages - 1) { <li class="page-item disabled"><span class="page-link">...</span></li>; }
+                    <li class="page-item"><a class="page-link" href="?section=bookings&page=@totalPages@searchParam@statusParam@movieParam@cinemaParam@dateParam">@totalPages</a></li>
+                }
+            }
+        </ul>
+    </nav>
+    </div>
+</div>
+<style>
+    .badge.bg-warning { background: #ffe082!important; color: #795548!important; }
+    .badge.bg-info { background: #81d4fa!important; color: #01579b!important; }
+    .badge.bg-success { background: #43a047!important; color: #fff!important; }
+    .table thead th { vertical-align: middle; }
+    .table td, .table th { vertical-align: middle; }
+</style>
+<script>
+    // Không cần JS submit nữa, đã xử lý inline onsubmit
+</script> 

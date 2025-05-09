@@ -1,0 +1,241 @@
+@model DashboardModel
+@{
+    var search = Context.Request.Query["search"].ToString();
+    var movieFilter = Context.Request.Query["movieId"].ToString();
+    var cinemaFilter = Context.Request.Query["cinemaId"].ToString();
+    var dateFilter = Context.Request.Query["date"].ToString();
+    var filtered = Model.Showtimes.AsQueryable();
+    if (!string.IsNullOrEmpty(search)) filtered = filtered.Where(s => s.Movie.Name.Contains(search));
+    if (!string.IsNullOrEmpty(movieFilter)) filtered = filtered.Where(s => s.Movie.Id.ToString() == movieFilter);
+    if (!string.IsNullOrEmpty(cinemaFilter)) filtered = filtered.Where(s => s.Cinema.Id.ToString() == cinemaFilter);
+    if (!string.IsNullOrEmpty(dateFilter)) {
+        var date = DateTime.Parse(dateFilter);
+        filtered = filtered.Where(s => s.Time.Date == date.Date);
+    }
+    var page = int.TryParse(Context.Request.Query["page"], out var p) ? p : 1;
+    var pageSize = 10;
+    var total = filtered.Count();
+    var totalPages = (int)Math.Ceiling(total / (double)pageSize);
+    var showtimes = filtered.Skip((page-1)*pageSize).Take(pageSize).ToList();
+}
+<div class="mb-4">
+    <button class="btn btn-primary mb-3" data-bs-toggle="modal" data-bs-target="#addShowtimeModal">Thêm suất chiếu mới</button>
+</div>
+<!-- Modal Thêm suất chiếu -->
+<div class="modal fade" id="addShowtimeModal" tabindex="-1" aria-labelledby="addShowtimeModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form method="post" asp-page-handler="AddShowtime">
+        @Html.AntiForgeryToken()
+        <div class="modal-header">
+          <h5 class="modal-title" id="addShowtimeModalLabel">Thêm suất chiếu mới</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label">Phim</label>
+            <select name="MovieId" class="form-select" required>
+              <option value="">Chọn phim</option>
+              @foreach (var movie in Model.Movies.Where(m => m.Status == "now"))
+              {
+                  <option value="@movie.Id">@movie.Name</option>
+              }
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Rạp</label>
+            <select name="CinemaId" class="form-select" required>
+              <option value="">Chọn rạp</option>
+              @foreach (var cinema in Model.Cinemas)
+              {
+                  <option value="@cinema.Id">@cinema.Name</option>
+              }
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Thời gian</label>
+            <input type="datetime-local" name="Time" class="form-control" required />
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
+          <button type="submit" class="btn btn-primary">Lưu</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+<!-- Modal Sửa suất chiếu (render động bằng JS) -->
+<div class="modal fade" id="editShowtimeModal" tabindex="-1" aria-labelledby="editShowtimeModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content" id="editShowtimeModalContent">
+      <!-- Nội dung sẽ được render động bằng JS -->
+    </div>
+  </div>
+</div>
+<div class="mb-3 row g-2 align-items-end">
+    <div class="col-md-3">
+        <input type="text" class="form-control" name="search" placeholder="Tìm kiếm tên phim..." value="@Context.Request.Query["search"]" onkeydown="if(event.key==='Enter'){submitShowtimeFilter()}" />
+    </div>
+    <div class="col-md-3">
+        <select class="form-select" name="movieId" id="movieFilter">
+            <option value="">Tất cả phim</option>
+            @{
+                var movieVal = Context.Request.Query["movieId"].ToString();
+                foreach(var m in Model.Movies) {
+                    if (movieVal == m.Id.ToString()) {
+                        <option value="@m.Id" selected>@m.Name</option>
+                    } else {
+                        <option value="@m.Id">@m.Name</option>
+                    }
+                }
+            }
+        </select>
+    </div>
+    <div class="col-md-3">
+        <select class="form-select" name="cinemaId" id="cinemaFilter">
+            <option value="">Tất cả rạp</option>
+            @{
+                var cinemaVal = Context.Request.Query["cinemaId"].ToString();
+                foreach(var c in Model.Cinemas) {
+                    if (cinemaVal == c.Id.ToString()) {
+                        <option value="@c.Id" selected>@c.Name</option>
+                    } else {
+                        <option value="@c.Id">@c.Name</option>
+                    }
+                }
+            }
+        </select>
+    </div>
+    <div class="col-md-2">
+        <input type="date" class="form-control" name="date" value="@Context.Request.Query["date"]"  />
+    </div>
+    <div class="col-md-1">
+        <button type="button" class="btn btn-primary w-100" onclick="submitShowtimeFilter()">Lọc</button>
+    </div>
+</div>
+<div>
+    <h4>Danh sách suất chiếu</h4>
+    <table class="table table-bordered">
+        <thead>
+            <tr>
+                <th>Phim</th>
+                <th>Rạp</th>
+                <th>Thời gian</th>
+                <th>Hành động</th>
+            </tr>
+        </thead>
+        <tbody>
+        @foreach (var show in showtimes)
+        {
+            <tr>
+                <td>@show.Movie?.Name</td>
+                <td>@show.Cinema?.Name</td>
+                <td>@show.Time.ToString("dd/MM/yyyy HH:mm")</td>
+                <td>
+                    <button type="button" class="btn btn-sm btn-warning edit-showtime-btn" data-showtime='@Newtonsoft.Json.JsonConvert.SerializeObject(show, new Newtonsoft.Json.JsonSerializerSettings { ContractResolver = new Newtonsoft.Json.Serialization.CamelCasePropertyNamesContractResolver() })'>Sửa</button>
+                    <form method="post" asp-page-handler="DeleteShowtime" asp-route-id="@show.Id" style="display:inline">
+                        <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Xóa suất chiếu này?')">Xóa</button>
+                    </form>
+                </td>
+            </tr>
+        }
+        </tbody>
+    </table>
+    <nav>
+        <ul class="pagination justify-content-center">
+            @{
+                string searchParam = string.IsNullOrEmpty(Context.Request.Query["search"]) ? "" : "&search=" + Uri.EscapeDataString(Context.Request.Query["search"]);
+                string movieParam = string.IsNullOrEmpty(Context.Request.Query["movieId"]) ? "" : "&movieId=" + Uri.EscapeDataString(Context.Request.Query["movieId"]);
+                string cinemaParam = string.IsNullOrEmpty(Context.Request.Query["cinemaId"]) ? "" : "&cinemaId=" + Uri.EscapeDataString(Context.Request.Query["cinemaId"]);
+                string dateParam = string.IsNullOrEmpty(Context.Request.Query["date"]) ? "" : "&date=" + Uri.EscapeDataString(Context.Request.Query["date"]);
+                int maxPages = 7;
+                int start = Math.Max(1, page - 2);
+                int end = Math.Min(totalPages, page + 2);
+                if (end - start < 4)
+                {
+                    if (start == 1) end = Math.Min(totalPages, start + 4);
+                    else if (end == totalPages) start = Math.Max(1, end - 4);
+                }
+                if (start > 1)
+                {
+                    <li class="page-item"><a class="page-link" href="?section=showtimes&page=1@searchParam@movieParam@cinemaParam@dateParam">1</a></li>
+                    if (start > 2) { <li class="page-item disabled"><span class="page-link">...</span></li>; }
+                }
+                for (int i = start; i <= end; i++)
+                {
+                    <li class="page-item @(i==page?"active":null)"><a class="page-link" href="?section=showtimes&page=@i@searchParam@movieParam@cinemaParam@dateParam">@i</a></li>
+                }
+                if (end < totalPages)
+                {
+                    if (end < totalPages - 1) { <li class="page-item disabled"><span class="page-link">...</span></li>; }
+                    <li class="page-item"><a class="page-link" href="?section=showtimes&page=@totalPages@searchParam@movieParam@cinemaParam@dateParam">@totalPages</a></li>
+                }
+            }
+        </ul>
+    </nav>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script>
+    // Chỉ lấy phim đang chiếu
+    var movies = @Html.Raw(Newtonsoft.Json.JsonConvert.SerializeObject(Model.Movies.Where(m => m.Status == "now").ToList()));
+    var cinemas = @Html.Raw(Newtonsoft.Json.JsonConvert.SerializeObject(Model.Cinemas.ToList()));
+    console.log(movies);
+    console.log(cinemas);
+    document.querySelectorAll('.edit-showtime-btn').forEach(btn => {
+        btn.addEventListener('click', function () {
+            const showtime = JSON.parse(this.getAttribute('data-showtime'));
+            let movieOptions = '<option value="">Chọn phim</option>';
+            movies.forEach(movie => {
+                movieOptions += `<option value="${movie.Id}" ${showtime.movieId == movie.Id ? 'selected' : ''}>${movie.Name}</option>`;
+            });
+            let cinemaOptions = '<option value="">Chọn rạp</option>';
+            cinemas.forEach(cinema => {
+                cinemaOptions += `<option value="${cinema.Id}" ${showtime.cinemaId == cinema.Id ? 'selected' : ''}>${cinema.Name}</option>`;
+            });
+            let timeValue = showtime.time ? showtime.time.substring(0,16) : '';
+            let html = `<form method=\"post\" action=\"?handler=EditShowtime&id=${showtime.id}\">`
+                + (document.querySelector('input[name=__RequestVerificationToken]')?.outerHTML || '')
+                + `<div class=\"modal-header\">
+                      <h5 class=\"modal-title\">Sửa suất chiếu</h5>
+                      <button type=\"button\" class=\"btn-close\" data-bs-dismiss=\"modal\" aria-label=\"Close\"></button>
+                   </div>
+                   <div class=\"modal-body\">
+                     <div class=\"mb-3\">
+                       <label class=\"form-label\">Phim</label>
+                       <select name=\"MovieId\" class=\"form-select\" required>${movieOptions}</select>
+                     </div>
+                     <div class=\"mb-3\">
+                       <label class=\"form-label\">Rạp</label>
+                       <select name=\"CinemaId\" class=\"form-select\" required>${cinemaOptions}</select>
+                     </div>
+                     <div class=\"mb-3\">
+                       <label class=\"form-label\">Thời gian</label>
+                       <input type=\"datetime-local\" name=\"Time\" class=\"form-control\" value=\"${timeValue}\" required />
+                     </div>
+                   </div>
+                   <div class=\"modal-footer\">
+                     <button type=\"button\" class=\"btn btn-secondary\" data-bs-dismiss=\"modal\">Đóng</button>
+                     <button type=\"submit\" class=\"btn btn-primary\">Lưu</button>
+                   </div>
+                 </form>`;
+            document.getElementById('editShowtimeModalContent').innerHTML = html;
+            var editModal = new bootstrap.Modal(document.getElementById('editShowtimeModal'));
+            editModal.show();
+        });
+    });
+
+    function submitShowtimeFilter() {
+        var search = document.querySelector('input[name=search]').value;
+        var movieId = document.getElementById('movieFilter').value;
+        var cinemaId = document.getElementById('cinemaFilter').value;
+        var date = document.querySelector('input[name=date]').value;
+        var url = '?section=showtimes';
+        if(search) url += '&search='+encodeURIComponent(search);
+        if(movieId) url += '&movieId='+encodeURIComponent(movieId);
+        if(cinemaId) url += '&cinemaId='+encodeURIComponent(cinemaId);
+        if(date) url += '&date='+encodeURIComponent(date);
+        window.location = url;
+    }
+</script> 

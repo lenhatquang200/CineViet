@@ -1,0 +1,124 @@
+@model DashboardModel
+@{
+    var search = Context.Request.Query["search"].ToString();
+    var filtered = Model.Customers.AsQueryable();
+    if (!string.IsNullOrEmpty(search)) filtered = filtered.Where(u => u.FullName.Contains(search) || u.Email.Contains(search) || u.Phone.Contains(search));
+    var page = int.TryParse(Context.Request.Query["page"], out var p) ? p : 1;
+    var pageSize = 10;
+    var total = filtered.Count();
+    var totalPages = (int)Math.Ceiling(total / (double)pageSize);
+    var customers = filtered.Skip((page-1)*pageSize).Take(pageSize).ToList();
+}
+<div class="mb-3 row g-2 align-items-end">
+    <div class="col-md-4">
+        <input type="text" class="form-control" name="search" placeholder="Tìm kiếm tên, email, SĐT..." value="@Context.Request.Query["search"]" onkeydown="if(event.key==='Enter'){window.location='?section=customers&search='+encodeURIComponent(this.value)}" />
+    </div>
+    <div class="col-md-2">
+        <button type="button" class="btn btn-primary w-100" onclick="window.location='?section=customers&search='+encodeURIComponent(document.querySelector('input[name=search]').value)">Lọc</button>
+    </div>
+</div>
+<div>
+    <h4>Danh sách khách hàng</h4>
+    <!-- Modal Sửa khách hàng (render động bằng JS) -->
+    <div class="modal fade" id="editCustomerModal" tabindex="-1" aria-labelledby="editCustomerModalLabel" aria-hidden="true">
+      <div class="modal-dialog">
+        <div class="modal-content" id="editCustomerModalContent">
+          <!-- Nội dung sẽ được render động bằng JS -->
+        </div>
+      </div>
+    </div>
+    <table class="table table-bordered">
+        <thead>
+            <tr>
+                <th>Họ tên</th>
+                <th>Email</th>
+                <th>Số điện thoại</th>
+                <th>Ngày tạo</th>
+                <th>Hành động</th>
+            </tr>
+        </thead>
+        <tbody>
+        @foreach (var user in customers)
+        {
+            <tr>
+                <td>@user.FullName</td>
+                <td>@user.Email</td>
+                <td>@user.Phone</td>
+                <td>@user.CreatedAt.ToString("dd/MM/yyyy HH:mm")</td>
+                <td>
+                    <button type="button" class="btn btn-sm btn-warning edit-customer-btn" data-customer='@Newtonsoft.Json.JsonConvert.SerializeObject(user, new Newtonsoft.Json.JsonSerializerSettings { ContractResolver = new Newtonsoft.Json.Serialization.CamelCasePropertyNamesContractResolver() })'>Sửa</button>
+                    <form method="post" asp-page-handler="DeleteCustomer" asp-route-id="@user.Id" style="display:inline">
+                        <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Xóa khách hàng này?')">Xóa</button>
+                    </form>
+                </td>
+            </tr>
+        }
+        </tbody>
+    </table>
+    <nav>
+        <ul class="pagination justify-content-center">
+            @{
+                string searchParam = string.IsNullOrEmpty(search) ? "" : "&search=" + Uri.EscapeDataString(search);
+                int maxPages = 7;
+                int start = Math.Max(1, page - 2);
+                int end = Math.Min(totalPages, page + 2);
+                if (end - start < 4)
+                {
+                    if (start == 1) end = Math.Min(totalPages, start + 4);
+                    else if (end == totalPages) start = Math.Max(1, end - 4);
+                }
+                if (start > 1)
+                {
+                    <li class="page-item"><a class="page-link" href="?section=customers&page=1@searchParam">1</a></li>
+                    if (start > 2) { <li class="page-item disabled"><span class="page-link">...</span></li>; }
+                }
+                for (int i = start; i <= end; i++)
+                {
+                    <li class="page-item @(i==page?"active":null)"><a class="page-link" href="?section=customers&page=@i@searchParam">@i</a></li>
+                }
+                if (end < totalPages)
+                {
+                    if (end < totalPages - 1) { <li class="page-item disabled"><span class="page-link">...</span></li>; }
+                    <li class="page-item"><a class="page-link" href="?section=customers&page=@totalPages@searchParam">@totalPages</a></li>
+                }
+            }
+        </ul>
+    </nav>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script>
+    document.querySelectorAll('.edit-customer-btn').forEach(btn => {
+        btn.addEventListener('click', function () {
+            const user = JSON.parse(this.getAttribute('data-customer'));
+            let html = `<form method=\"post\" action=\"?handler=EditCustomer&id=${user.id}\">`
+                + (document.querySelector('input[name=__RequestVerificationToken]')?.outerHTML || '')
+                + `<div class=\"modal-header\">
+                      <h5 class=\"modal-title\">Sửa khách hàng</h5>
+                      <button type=\"button\" class=\"btn-close\" data-bs-dismiss=\"modal\" aria-label=\"Close\"></button>
+                   </div>
+                   <div class=\"modal-body\">
+                     <div class=\"mb-3\">
+                       <label class=\"form-label\">Họ tên</label>
+                       <input type=\"text\" name=\"FullName\" class=\"form-control\" value=\"${user.fullName || ''}\" required />
+                     </div>
+                     <div class=\"mb-3\">
+                       <label class=\"form-label\">Email</label>
+                       <input type=\"email\" name=\"Email\" class=\"form-control\" value=\"${user.email || ''}\" required />
+                     </div>
+                     <div class=\"mb-3\">
+                       <label class=\"form-label\">Số điện thoại</label>
+                       <input type=\"text\" name=\"Phone\" class=\"form-control\" value=\"${user.phone || ''}\" required />
+                     </div>
+                   </div>
+                   <div class=\"modal-footer\">
+                     <button type=\"button\" class=\"btn btn-secondary\" data-bs-dismiss=\"modal\">Đóng</button>
+                     <button type=\"submit\" class=\"btn btn-primary\">Lưu</button>
+                   </div>
+                 </form>`;
+            document.getElementById('editCustomerModalContent').innerHTML = html;
+            var editModal = new bootstrap.Modal(document.getElementById('editCustomerModal'));
+            editModal.show();
+        });
+    });
+</script> 

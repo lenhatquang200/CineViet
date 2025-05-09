@@ -1,0 +1,180 @@
+@page
+@model BookTicketModel
+@{
+    ViewData["Title"] = "Đặt vé xem phim";
+    var seatRows = Model.Seats.Select(s => s.Row).Distinct().ToList();
+    var seatCols = Model.Seats.Where(s => s.Row == seatRows.First()).Count();
+    var standardPrice = 90000;
+    var vipPrice = 120000;
+}
+@if (Request.Query["error"] == "1")
+{
+    <div class="alert alert-danger">Vui lòng chọn ghế trước khi tiếp tục.</div>
+}
+@if (Model.Movie == null || Model.Cinema == null || Model.Showtime == null)
+{
+    <div class="alert alert-warning">Vui lòng chọn phim, rạp và suất chiếu từ trang chi tiết phim.</div>
+}
+else
+{
+    <div class="py-5">
+        <div class="container">
+            <a href="/MovieDetail?Id=@Model.Movie.Id" class="mb-4 d-inline-flex align-items-center text-primary text-decoration-none"><i class="bi bi-chevron-left me-1"></i>Quay lại thông tin phim</a>
+            <div class="row g-5">
+                <!-- Left: Seat selection -->
+                <div class="col-md-8">
+                    <div class="mb-4">
+                        <h1 class="mb-3 fw-bold">Chọn ghế</h1>
+                        <div class="rounded-3 bg-light p-4 mb-4">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <div>
+                                    <h2 class="fs-4 fw-bold mb-1">@Model.Movie.Name</h2>
+                                    <div class="text-muted small">@Model.Cinema.Name | @Model.Showtime.Time.ToString("HH:mm") | @Model.Movie.Duration phút</div>
+                                </div>
+                            </div>
+                            <div class="mb-3 d-flex justify-content-center">
+                                <div class="w-75 rounded-top bg-primary bg-opacity-25 py-2 text-center small fw-medium">Màn hình</div>
+                            </div>
+                            <div class="d-flex justify-content-center gap-4 align-items-center mt-3 mb-2" style="font-size:16px;">
+                                <span class="d-flex align-items-center gap-1"><span style="display:inline-block;width:24px;height:24px;border:2px solid #adb5bd;border-radius:4px;background:#fff;"></span> Trống</span>
+                                <span class="d-flex align-items-center gap-1"><span style="display:inline-block;width:24px;height:24px;border-radius:4px;background:#1976d2;"></span> Đã chọn</span>
+                                <span class="d-flex align-items-center gap-1"><span style="display:inline-block;width:24px;height:24px;border-radius:4px;background:#adb5bd;"></span> Đã bán</span>
+                                <span class="d-flex align-items-center gap-1"><span style="display:inline-block;width:24px;height:24px;border-radius:4px;background:#ffa000;"></span> VIP</span>
+                            </div>
+                            <div class="d-flex gap-4 align-items-center justify-content-center mb-3">
+                                <span>Loại ghế: <span id="seatType" class="fw-semibold">Thường</span></span>
+                                <span>Giá: <span id="seatPrice" class="fw-semibold">@standardPrice.ToString("N0")đ/vé</span></span>
+                            </div>
+                            <div class="d-flex flex-column gap-2 align-items-center mb-3" id="seatMap">
+                                @foreach (var row in seatRows)
+                                {
+                                    <div class="d-flex gap-2">
+                                        @foreach (var seat in Model.Seats.Where(s => s.Row == row))
+                                        {
+                                            var seatId = $"{seat.Row}{seat.Number}";
+                                            var isSold = Model.SoldSeats.Contains(seatId);
+                                            var isVip = seat.IsVip;
+                                            <div>
+                                                <input type="checkbox" name="Seats" value="@seatId" id="@seatId" class="btn-check" autocomplete="off" form="bookingForm" @(isSold ? "disabled" : "") />
+                                                <label class="btn mb-0 px-3 py-2 seat-label @(isSold ? "bg-secondary text-white" : isVip ? "bg-warning" : "btn-outline-secondary")" for="@seatId" data-seat="@seatId" data-vip="@(isVip ? "1" : "0")">@seatId</label>
+                                            </div>
+                                        }
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <!-- Right: Ticket info card -->
+                <div class="col-md-4">
+                    <div class="card shadow-sm">
+                        <form method="post" id="bookingForm" action="/Checkout">
+                            @Html.AntiForgeryToken()
+                            <div class="card-body">
+                                <div class="d-flex gap-3 mb-3">
+                                    <img src="@Model.Movie.Image" alt="@Model.Movie.Name" width="80" height="120" class="rounded object-fit-cover" />
+                                    <div>
+                                        <h5 class="fw-bold mb-1">@Model.Movie.Name</h5>
+                                        <div class="small text-muted">@Model.Movie.Genre</div>
+                                        <div class="small text-muted">@Model.Movie.Duration phút</div>
+                                    </div>
+                                </div>
+                                <div class="mb-2 d-flex justify-content-between"><span>Rạp:</span><span class="fw-medium">@Model.Cinema.Name</span></div>
+                                <div class="mb-2 d-flex justify-content-between"><span>Ngày chiếu:</span><span class="fw-medium">Hôm nay</span></div>
+                                <div class="mb-2 d-flex justify-content-between"><span>Suất chiếu:</span><span class="fw-medium">@Model.Showtime.Time.ToString("HH:mm")</span></div>
+                                <div class="mb-2 d-flex justify-content-between"><span>Ghế:</span><span class="fw-medium" id="selectedSeats">Chưa chọn</span></div>
+                                <div class="alert alert-info d-flex align-items-center gap-2 py-2 px-3 my-3"><i class="bi bi-info-circle text-primary"></i><span class="small">Vui lòng kiểm tra thông tin trước khi thanh toán</span></div>
+                                <div class="d-flex justify-content-between align-items-center mb-3">
+                                    <span class="fw-bold fs-5">Tổng tiền:</span>
+                                    <span class="fw-bold fs-4 text-primary" id="totalPrice">0đ</span>
+                                </div>
+                                <input type="hidden" name="ShowtimeId" value="@Model.Showtime.Id" />
+                                <button type="submit" class="btn btn-success btn-lg w-100 mt-2" id="continueBtn" disabled>Tiếp tục</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script>
+        const seatInputs = document.querySelectorAll('input[name="Seats"]');
+        const seatLabels = document.querySelectorAll('.seat-label');
+        let selectedSeats = [];
+        const standardPrice = @standardPrice;
+        const vipPrice = @vipPrice;
+        function updateTotal() {
+            selectedSeats = Array.from(seatInputs).filter(i => i.checked).map(i => i.value);
+            let hasVip = selectedSeats.some(seat => seat.startsWith('D'));
+            let price = 0;
+            let type = 'Thường';
+            if (selectedSeats.length > 0) {
+                price = selectedSeats.reduce((sum, seat) => sum + (seat.startsWith('D') ? vipPrice : standardPrice), 0);
+                type = hasVip ? 'VIP' : 'Thường';
+            }
+            const selectedSeatsEl = document.getElementById('selectedSeats');
+            if (selectedSeatsEl) selectedSeatsEl.innerText = selectedSeats.length > 0 ? selectedSeats.join(', ') : 'Chưa chọn';
+            const totalPriceEl = document.getElementById('totalPrice');
+            if (totalPriceEl) totalPriceEl.innerText = price.toLocaleString() + 'đ';
+            const continueBtn = document.getElementById('continueBtn');
+            if (continueBtn) continueBtn.disabled = selectedSeats.length === 0;
+            // Highlight selected seats, ưu tiên #1976d2
+            seatLabels.forEach(label => {
+                const seat = label.getAttribute('data-seat');
+                if (selectedSeats.includes(seat)) {
+                    label.style.background = '#1976d2';
+                    label.style.color = '#fff';
+                    label.classList.remove('bg-warning','bg-info','text-dark');
+                } else {
+                    label.style.background = '';
+                    label.style.color = '';
+                    label.classList.remove('bg-info','text-dark');
+                    // Nếu là VIP thì trả lại màu vàng
+                    if (label.getAttribute('data-vip') === '1' && !label.classList.contains('bg-secondary')) {
+                        label.classList.add('bg-warning');
+                    } else {
+                        label.classList.remove('bg-warning');
+                    }
+                }
+            });
+            // Show info for last selected seat
+            let lastSeat = selectedSeats[selectedSeats.length-1];
+            const seatTypeEl = document.getElementById('seatType');
+            const seatPriceEl = document.getElementById('seatPrice');
+            if (lastSeat) {
+                let isVip = lastSeat.startsWith('D');
+                if (seatTypeEl) seatTypeEl.innerText = isVip ? 'VIP' : 'Thường';
+                if (seatPriceEl) seatPriceEl.innerText = (isVip ? vipPrice : standardPrice).toLocaleString() + 'đ/vé';
+            } else {
+                if (seatTypeEl) seatTypeEl.innerText = 'Thường';
+                if (seatPriceEl) seatPriceEl.innerText = standardPrice.toLocaleString() + 'đ/vé';
+            }
+        }
+        seatInputs.forEach(input => {
+            input.addEventListener('change', function() {
+                selectedSeats = Array.from(seatInputs).filter(i => i.checked).map(i => i.value);
+                if (selectedSeats.length > 8) {
+                    this.checked = false;
+                    selectedSeats.pop();
+                    alert('Chỉ được chọn tối đa 8 ghế');
+                }
+                updateTotal();
+            });
+        });
+        seatLabels.forEach(label => {
+            label.addEventListener('mouseenter', function() {
+                if (!label.classList.contains('bg-secondary')) {
+                    let isVip = label.getAttribute('data-vip') === '1';
+                    const seatTypeEl = document.getElementById('seatType');
+                    const seatPriceEl = document.getElementById('seatPrice');
+                    if (seatTypeEl) seatTypeEl.innerText = isVip ? 'VIP' : 'Thường';
+                    if (seatPriceEl) seatPriceEl.innerText = (isVip ? vipPrice : standardPrice).toLocaleString() + 'đ/vé';
+                }
+            });
+            label.addEventListener('mouseleave', function() {
+                updateTotal();
+            });
+        });
+        updateTotal();
+    </script>
+} 

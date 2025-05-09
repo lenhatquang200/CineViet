@@ -1,0 +1,91 @@
+@page
+@model CheckoutModel
+@{
+    ViewData["Title"] = "Xác nhận đặt vé";
+    int serviceFee = 10000;
+    int totalWithFee = Model.Total + serviceFee;
+}
+<div class="py-5">
+    <div class="container">
+        <a href="javascript:history.back()" class="mb-4 d-inline-flex align-items-center text-primary text-decoration-none"><i class="bi bi-chevron-left me-1"></i>Quay lại chọn ghế</a>
+        <h1 class="mb-4 fw-bold">Xác nhận đặt vé</h1>
+        @if (Model.IsValid)
+        {
+        <form method="post">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="ShowtimeId" value="@Model.Showtime?.Id" />
+            @foreach (var seat in Model.Seats) {
+                <input type="hidden" name="Seats" value="@seat" />
+            }
+            <input type="hidden" name="Confirm" value="true" />
+            <div class="row g-5">
+                <div class="col-md-7">
+                    <div class="card mb-4">
+                        <div class="card-header bg-white border-bottom-0 pb-0">
+                            <h5 class="mb-1 fw-bold">Thanh toán tại quầy</h5>
+                            <div class="text-muted small">Vui lòng điền thông tin liên hệ để nhận mã đặt vé và thanh toán tại quầy</div>
+                        </div>
+                        <div class="card-body">
+                            <div class="d-flex align-items-center gap-3 rounded bg-primary bg-opacity-10 p-3 mb-4">
+                                <i class="bi bi-ticket-perforated fs-2 text-primary"></i>
+                                <div>
+                                    <div class="fw-semibold">Thanh toán tại quầy rạp chiếu phim</div>
+                                    <div class="small text-muted">Vui lòng đến quầy thanh toán trước giờ chiếu ít nhất 30 phút để thanh toán và nhận vé</div>
+                                </div>
+                            </div>
+                            <div class="mb-4">
+                                <h6 class="fw-bold mb-3">Thông tin liên hệ</h6>
+                                <div class="row g-3">
+                                    <div class="col-md-4">
+                                        <label class="form-label">Họ và tên <span class="text-danger">*</span></label>
+                                        <input type="text" class="form-control" placeholder="Nguyễn Văn A" name="ContactName" required value="@Model.ContactName" />
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label">Email <span class="text-danger">*</span></label>
+                                        <input type="email" class="form-control" placeholder="example@gmail.com" name="ContactEmail" required value="@Model.ContactEmail" />
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label">Số điện thoại <span class="text-danger">*</span></label>
+                                        <input type="text" class="form-control" placeholder="0912345678" name="ContactPhone" required value="@Model.ContactPhone" />
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-5">
+                    <div class="card mb-4">
+                        <div class="card-header bg-white border-bottom-0 pb-0">
+                            <h5 class="mb-1 fw-bold">Thông tin đơn hàng</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="mb-3">
+                                <div class="d-flex justify-content-between"><span>Phim:</span><span class="fw-medium">@Model.Movie?.Name</span></div>
+                                <div class="d-flex justify-content-between"><span>Rạp:</span><span class="fw-medium">@Model.Cinema?.Name</span></div>
+                                <div class="d-flex justify-content-between"><span>Ngày chiếu:</span><span class="fw-medium">Hôm nay</span></div>
+                                <div class="d-flex justify-content-between"><span>Suất chiếu:</span><span class="fw-medium">@Model.Showtime?.Time.ToString("HH:mm")</span></div>
+                                <div class="d-flex justify-content-between"><span>Ghế:</span><span class="fw-medium">@(Model.Seats.Count > 0 ? string.Join(", ", Model.Seats) : "Chưa chọn")</span></div>
+                                <div class="d-flex justify-content-between"><span>Loại vé:</span><span class="fw-medium">@Model.Type</span></div>
+                            </div>
+                            <div class="border-top pt-3 mb-3">
+                                <div class="d-flex justify-content-between"><span>Giá vé (@Model.Seats.Count):</span><span class="fw-medium">@Model.Total.ToString("N0")đ</span></div>
+                                <div class="d-flex justify-content-between"><span>Phí dịch vụ:</span><span class="fw-medium">@serviceFee.ToString("N0")đ</span></div>
+                            </div>
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <span class="fw-bold fs-5">Tổng tiền:</span>
+                                <span class="fw-bold fs-4 text-primary">@totalWithFee.ToString("N0")đ</span>
+                            </div>
+                            <button class="btn btn-success btn-lg w-100" type="submit">Xác nhận đặt vé</button>
+                            <div class="d-flex align-items-center justify-content-center gap-2 text-muted small mt-3">
+                                <i class="bi bi-info-circle"></i>
+                                <span>Vui lòng thanh toán tại quầy trước giờ chiếu</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </form>
+        }
+    </div>
+</div>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" /> 

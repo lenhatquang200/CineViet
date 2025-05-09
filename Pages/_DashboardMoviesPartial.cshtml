@@ -1,0 +1,292 @@
+@model DashboardModel
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" />
+<div class="mb-4">
+    <button class="btn btn-primary mb-3" data-bs-toggle="modal" data-bs-target="#addMovieModal">Thêm phim mới</button>
+</div>
+<div class="mb-3 row g-2 align-items-end">
+    <div class="col-md-4">
+        <input type="text" class="form-control" name="search" placeholder="Tìm kiếm tên phim..." value="@Context.Request.Query["search"]" onkeydown="if(event.key==='Enter'){window.location='?section=movies&search='+encodeURIComponent(this.value)+'&status='+encodeURIComponent(document.getElementById('statusFilter').value)}" />
+    </div>
+    <div class="col-md-3">
+        <select class="form-select" id="statusFilter">
+            @{
+                var statusVal = Context.Request.Query["status"].ToString();
+                if (string.IsNullOrEmpty(statusVal) || statusVal == "all") {
+                    <option value="all" selected>Tất cả</option>
+                } else {
+                    <option value="all">Tất cả</option>
+                }
+                if (statusVal == "now") {
+                    <option value="now" selected>Đang chiếu</option>
+                } else {
+                    <option value="now">Đang chiếu</option>
+                }
+                if (statusVal == "coming") {
+                    <option value="coming" selected>Sắp chiếu</option>
+                } else {
+                    <option value="coming">Sắp chiếu</option>
+                }
+            }
+        </select>
+    </div>
+    <div class="col-md-2">
+        <button type="button" class="btn btn-primary w-100" onclick="window.location='?section=movies&search='+encodeURIComponent(document.querySelector('input[name=search]').value)+'&status='+encodeURIComponent(document.getElementById('statusFilter').value)">Lọc</button>
+    </div>
+</div>
+<!-- Modal Thêm phim -->
+<div class="modal fade" id="addMovieModal" tabindex="-1" aria-labelledby="addMovieModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <form method="post" enctype="multipart/form-data" asp-page-handler="AddMovie">
+        @Html.AntiForgeryToken()
+        <div class="modal-header">
+          <h5 class="modal-title" id="addMovieModalLabel">Thêm phim mới</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label">Tên phim</label>
+              <input type="text" name="Name" class="form-control" required />
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Thể loại</label>
+              <select name="Genre" class="form-select genre-select" multiple required>
+                <option value="Hành động">Hành động</option>
+                <option value="Phiêu lưu">Phiêu lưu</option>
+                <option value="Kịch tính">Kịch tính</option>
+                <option value="Tội phạm">Tội phạm</option>
+                <option value="Hài kịch">Hài kịch</option>
+                <option value="Khoa học viễn tưởng">Khoa học viễn tưởng</option>
+              </select>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">Thời lượng (phút)</label>
+              <input type="number" name="Duration" class="form-control" required />
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">Năm</label>
+              <input type="number" name="Year" class="form-control" required />
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">Rating</label>
+              <input type="number" step="0.1" name="Rating" class="form-control" max="10" required />
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Trạng thái</label>
+              <select name="Status" class="form-select" required>
+                <option value="now">Đang chiếu</option>
+                <option value="coming">Sắp chiếu</option>
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Ảnh</label>
+              <input type="file" name="ImageFile" class="form-control" accept="image/*" required />
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Diễn viên</label>
+              <input type="text" name="Cast" class="form-control" />
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Đạo diễn</label>
+              <input type="text" name="Director" class="form-control" />
+            </div>
+            <div class="col-12">
+              <label class="form-label">Mô tả</label>
+              <textarea name="Description" class="form-control" rows="2"></textarea>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
+          <button type="submit" class="btn btn-primary">Lưu</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+<!-- Modal Sửa phim (render động bằng JS) -->
+<div class="modal fade" id="editMovieModal" tabindex="-1" aria-labelledby="editMovieModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content" id="editMovieModalContent">
+      <!-- Nội dung sẽ được render động bằng JS -->
+    </div>
+  </div>
+</div>
+<div>
+    <h4>Danh sách phim</h4>
+    @{
+        var search = Context.Request.Query["search"].ToString();
+        var status = Context.Request.Query["status"].ToString();
+        var filtered = Model.Movies.AsQueryable();
+        if (!string.IsNullOrEmpty(search)) filtered = filtered.Where(m => m.Name.Contains(search));
+        if (!string.IsNullOrEmpty(status) && status != "all") filtered = filtered.Where(m => m.Status == status);
+        var page = int.TryParse(Context.Request.Query["page"], out var p) ? p : 1;
+        var pageSize = 10;
+        var total = filtered.Count();
+        var totalPages = (int)Math.Ceiling(total / (double)pageSize);
+        var movies = filtered.Skip((page-1)*pageSize).Take(pageSize).ToList();
+    }
+    <table class="table table-bordered">
+        <thead>
+            <tr>
+                <th>Ảnh</th>
+                <th>Tên phim</th>
+                <th>Thể loại</th>
+                <th>Thời lượng</th>
+                <th>Năm</th>
+                <th>Rating</th>
+                <th>Trạng thái</th>
+                <th>Hành động</th>
+            </tr>
+        </thead>
+        <tbody>
+        @foreach (var movie in movies)
+        {
+            <tr>
+                <td><img src="@movie.Image" alt="@movie.Name" style="width:60px;height:80px;object-fit:cover;"></td>
+                <td>@movie.Name</td>
+                <td>@movie.Genre</td>
+                <td>@movie.Duration</td>
+                <td>@movie.Year</td>
+                <td>@movie.Rating</td>
+                <td>
+                    @(movie.Status == "now" ? "Đang chiếu" : movie.Status == "coming" ? "Sắp chiếu" : "")
+                </td>
+                <td>
+                    <button type="button" class="btn btn-sm btn-warning edit-movie-btn" data-movie='@Newtonsoft.Json.JsonConvert.SerializeObject(movie, new Newtonsoft.Json.JsonSerializerSettings { ContractResolver = new Newtonsoft.Json.Serialization.CamelCasePropertyNamesContractResolver() })'>Sửa</button>
+                    <form method="post" asp-page-handler="DeleteMovie" asp-route-id="@movie.Id" style="display:inline">
+                        <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Xóa phim này?')">Xóa</button>
+                    </form>
+                </td>
+            </tr>
+        }
+        </tbody>
+    </table>
+    <nav>
+        <ul class="pagination justify-content-center">
+            @{
+                string searchParam = string.IsNullOrEmpty(search) ? "" : "&search=" + Uri.EscapeDataString(search);
+                string statusParam = string.IsNullOrEmpty(status) ? "" : "&status=" + Uri.EscapeDataString(status);
+                int maxPages = 7;
+                int start = Math.Max(1, page - 2);
+                int end = Math.Min(totalPages, page + 2);
+                if (end - start < 4)
+                {
+                    if (start == 1) end = Math.Min(totalPages, start + 4);
+                    else if (end == totalPages) start = Math.Max(1, end - 4);
+                }
+                if (start > 1)
+                {
+                    <li class="page-item"><a class="page-link" href="?section=movies&page=1@searchParam@statusParam">1</a></li>
+                    if (start > 2) { <li class="page-item disabled"><span class="page-link">...</span></li>; }
+                }
+                for (int i = start; i <= end; i++)
+                {
+                    <li class="page-item @(i==page?"active":null)"><a class="page-link" href="?section=movies&page=@i@searchParam@statusParam">@i</a></li>
+                }
+                if (end < totalPages)
+                {
+                    if (end < totalPages - 1) { <li class="page-item disabled"><span class="page-link">...</span></li>; }
+                    <li class="page-item"><a class="page-link" href="?section=movies&page=@totalPages@searchParam@statusParam">@totalPages</a></li>
+                }
+            }
+        </ul>
+    </nav>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+<script>
+    // Khởi tạo select2 cho modal thêm khi show
+    $('#addMovieModal').on('shown.bs.modal', function () {
+        $(this).find('.genre-select').select2({ width: '100%', placeholder: 'Chọn thể loại', dropdownParent: $('#addMovieModal') });
+    });
+    // Khởi tạo select2 cho modal sửa và set đúng giá trị khi show
+    document.querySelectorAll('.edit-movie-btn').forEach(btn => {
+        btn.addEventListener('click', function () {
+            const movie = JSON.parse(this.getAttribute('data-movie'));
+            let genres = movie.genre ? movie.genre.split(',').map(s => s.trim()) : [];
+            let genreOptions = [
+                { value: 'Hành động', text: 'Hành động' },
+                { value: 'Phiêu lưu', text: 'Phiêu lưu' },
+                { value: 'Kịch tính', text: 'Kịch tính' },
+                { value: 'Tội phạm', text: 'Tội phạm' },
+                { value: 'Hài kịch', text: 'Hài kịch' },
+                { value: 'Khoa học viễn tưởng', text: 'Khoa học viễn tưởng' }
+            ];
+            let genreSelect = `<select name="Genre" class="form-select genre-select" multiple required>`;
+            genreOptions.forEach(opt => {
+                genreSelect += `<option value="${opt.value}" ${genres.includes(opt.value) ? 'selected' : ''}>${opt.text}</option>`;
+            });
+            genreSelect += `</select>`;
+            let html = `<form method="post" enctype="multipart/form-data" action="?handler=EditMovie&id=${movie.id}">
+                ${document.querySelector('input[name=__RequestVerificationToken]')?.outerHTML || ''}
+                <div class="modal-header">
+                  <h5 class="modal-title">Sửa phim</h5>
+                  <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                  <div class="row g-3">
+                    <div class="col-md-6">
+                      <label class="form-label">Tên phim</label>
+                      <input type="text" name="Name" class="form-control" value="${movie.name}" required />
+                    </div>
+                    <div class="col-md-6">
+                      <label class="form-label">Thể loại</label>
+                      ${genreSelect}
+                    </div>
+                    <div class="col-md-4">
+                      <label class="form-label">Thời lượng (phút)</label>
+                      <input type="number" name="Duration" class="form-control" value="${movie.duration}" required />
+                    </div>
+                    <div class="col-md-4">
+                      <label class="form-label">Năm</label>
+                      <input type="number" name="Year" class="form-control" value="${movie.year}" required />
+                    </div>
+                    <div class="col-md-4">
+                      <label class="form-label">Rating</label>
+                      <input type="number" step="0.1" name="Rating" class="form-control" value="${movie.rating}" max="10" required />
+                    </div>
+                    <div class="col-md-6">
+                      <label class="form-label">Trạng thái</label>
+                      <select name="Status" class="form-select" required>
+                        <option value="now" ${movie.status === 'now' ? 'selected' : ''}>Đang chiếu</option>
+                        <option value="coming" ${movie.status === 'coming' ? 'selected' : ''}>Sắp chiếu</option>
+                      </select>
+                    </div>
+                    <div class="col-md-6">
+                      <label class="form-label">Ảnh</label>
+                      <input type="file" name="ImageFile" class="form-control" accept="image/*" />
+                    </div>
+                    <div class="col-md-6">
+                      <label class="form-label">Diễn viên</label>
+                      <input type="text" name="Cast" class="form-control" value="${movie.cast || ''}" />
+                    </div>
+                    <div class="col-md-6">
+                      <label class="form-label">Đạo diễn</label>
+                      <input type="text" name="Director" class="form-control" value="${movie.director || ''}" />
+                    </div>
+                    <div class="col-12">
+                      <label class="form-label">Mô tả</label>
+                      <textarea name="Description" class="form-control" rows="2">${movie.description || ''}</textarea>
+                    </div>
+                  </div>
+                </div>
+                <div class="modal-footer">
+                  <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
+                  <button type="submit" class="btn btn-primary">Lưu</button>
+                </div>
+              </form>`;
+            document.getElementById('editMovieModalContent').innerHTML = html;
+            var editModal = new bootstrap.Modal(document.getElementById('editMovieModal'));
+            editModal.show();
+            setTimeout(function() {
+                var $genreSelect = $('#editMovieModal .genre-select');
+                $genreSelect.select2({ width: '100%', placeholder: 'Chọn thể loại', dropdownParent: $('#editMovieModal') });
+                $genreSelect.val(genres).trigger('change');
+            }, 100);
+        });
+    });
+</script> 

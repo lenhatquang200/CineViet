@@ -1,0 +1,40 @@
+@page
+@model MyTicketsModel
+@{
+    ViewData["Title"] = "Vé của tôi";
+}
+<div class="container py-5">
+    <h1 class="mb-4 fw-bold text-center">Vé của tôi</h1>
+    @if (Model.Bookings == null) {
+        <div class="alert alert-warning">Bạn chưa đăng nhập.</div>
+    } else if (!Model.Bookings.Any()) {
+        <div class="alert alert-info">Bạn chưa có vé nào.</div>
+    } else {
+        <div class="table-responsive">
+            <table class="table table-bordered align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th>Phim</th>
+                        <th>Rạp</th>
+                        <th>Suất chiếu</th>
+                        <th>Ghế</th>
+                        <th>Tổng tiền</th>
+                        <th>Ngày đặt</th>
+                    </tr>
+                </thead>
+                <tbody>
+                @foreach (var b in Model.Bookings) {
+                    <tr>
+                        <td>@b.Showtime.Movie.Name</td>
+                        <td>@b.Showtime.Cinema.Name</td>
+                        <td>@b.Showtime.Time.ToString("dd/MM/yyyy HH:mm")</td>
+                        <td>@b.Seats</td>
+                        <td>@b.TotalPrice.ToString("N0")đ</td>
+                        <td>@b.BookingTime.ToString("dd/MM/yyyy HH:mm")</td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    }
+</div> 
