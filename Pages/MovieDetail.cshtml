@@ -64,12 +64,12 @@
                             var cinemas = shows.GroupBy(s => s.CinemaId).ToList();
                             foreach (var cinemaGroup in cinemas)
                             {
-                                var cinema = cinemaGroup.First().CinemaId;
+                                var cinema = cinemaGroup.First().Cinema;
                                 <div class="card mb-4">
                                     <div class="card-body p-4">
                                         <div class="mb-3 d-flex justify-content-between align-items-center">
                                             <div>
-                                                <h3 class="fs-5 fw-bold mb-1">Rạp @cinema</h3>
+                                                <h3 class="fs-5 fw-bold mb-1">Rạp @cinema.Name</h3>
                                             </div>
                                         </div>
                                         <div class="d-flex flex-wrap gap-2">

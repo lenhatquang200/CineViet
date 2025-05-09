@@ -4,6 +4,7 @@ using System.Linq;
 using System.Collections.Generic;
 using System;
 using CineViet.Models;
+using Microsoft.EntityFrameworkCore;
 
 public class MovieDetailModel : PageModel
 {
@@ -22,7 +23,7 @@ public class MovieDetailModel : PageModel
         {
             var today = DateTime.Today;
             var end = today.AddDays(7);
-            Showtimes = _db.Showtimes.Where(s => s.MovieId == id && s.Time >= today && s.Time < end).ToList();
+            Showtimes = _db.Showtimes.Include(s => s.Cinema).Where(s => s.MovieId == id && s.Time >= today && s.Time < end).ToList();
         }
         else
         {
