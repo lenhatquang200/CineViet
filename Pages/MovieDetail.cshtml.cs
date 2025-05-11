@@ -21,9 +21,9 @@ public class MovieDetailModel : PageModel
         if (Movie == null) return NotFound();
         if (Movie.Status == "now")
         {
-            var today = DateTime.Today;
-            var end = today.AddDays(7);
-            Showtimes = _db.Showtimes.Include(s => s.Cinema).Where(s => s.MovieId == id && s.Time >= today && s.Time < end).ToList();
+            var now = DateTime.Now;
+            var end = now.Date.AddDays(7);
+            Showtimes = _db.Showtimes.Include(s => s.Cinema).Where(s => s.MovieId == id && s.Time > now && s.Time < end).ToList();
         }
         else
         {
