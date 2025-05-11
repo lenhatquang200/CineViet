@@ -33,7 +33,8 @@ public class BookTicketModel : PageModel
         Cinema = _db.Cinemas.FirstOrDefault(c => c.Id == Showtime.CinemaId);
         Seats = _db.Seats.Where(s => s.CinemaId == Cinema.Id).OrderBy(s => s.Row).ThenBy(s => s.Number).ToList();
         if (Movie == null || Cinema == null) return Redirect("/Movies");
-        // TODO: Lấy danh sách ghế đã bán từ bảng Booking nếu cần
+        var bookings = _db.Bookings.Where(b => b.ShowtimeId == showtimeId && b.Status != "canceled").ToList();
+        SoldSeats = bookings.SelectMany(b => b.Seats.Split(',')).Distinct().ToList();
         return Page();
     }
     public void OnPost()
